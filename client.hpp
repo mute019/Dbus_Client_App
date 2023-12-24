@@ -8,8 +8,10 @@
 typedef struct comm_info {
     const char *interface_name = "org.new.Methods";
     const char *server_bus_name = "com.test.app_bus";
-    const char *object_path_name = "org/new/methods";
+    const char *client_bus_name = "com.fix.test";
+    const char *object_path_name = "org/new/pack";
     const char *method_name = "SayHello";
+    bool conn_flag = false;
     DBusConnection *conn = nullptr;
     DBusError err;
 } server_info;
