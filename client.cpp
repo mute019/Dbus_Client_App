@@ -12,14 +12,12 @@ int main() {
 
     server_info *servr = new server_info;
 
-    
-
     if (dbus_error_is_set(&servr->err)) {
         fprintf(stderr, "Error: %s \n", servr->err.message);
         dbus_error_free(&servr->err);
     }
 
-    servr->conn = dbus_connection_open_private("unix:path=/run/user/1001/bus", &servr->err);
+    servr->conn = dbus_connection_open("unix:path=/run/user/1001/bus", &servr->err);
     // servr->conn = dbus_bus_get(DBUS_BUS_SESSION, &servr->err);
     if (!dbus_bus_register(servr->conn, &servr->err)) {
         fprintf(stderr, "Error: %s\n", servr->err.message);
@@ -31,7 +29,7 @@ int main() {
     }
 
 
-    signal(SIGINT, signal_handler);
+    // signal(SIGINT, signal_handler);
 
     break_flag = false;
 
@@ -71,60 +69,8 @@ int main() {
             }
 
         }
-        
-        pthread_t thread;
-
-        int thrd = pthread_create(&thread, NULL, (void* (*) (void*))&thread_handler, servr);
-
-        DBusMessage *ping_msg = dbus_message_new_method_call(
-            servr->server_bus_name,
-            "/",
-            "org.freedesktop.DBus.Peer",
-            "Ping"
-        );
-
-        DBusMessage *ping_reply = dbus_connection_send_with_reply_and_block(servr->conn, ping_msg, -1, &servr->err);
-
-
-        if (ping_reply == nullptr && dbus_error_is_set(&servr->err)) {
-            if (servr->conn_flag) {
-                servr->conn_flag = !servr->conn_flag;
-            }
-            fprintf(stderr, "Error: %s\n", servr->err.message);
-            sleep(1);
-            continue;
-        } else {
-            if (!servr->conn_flag) {
-                fprintf(stdout, "[+]connection established\n");
-                servr->conn_flag = !servr->conn_flag;
-            }
-        }
-
-    }
+        fprintf(stdout, "[+]client: ");
     
-    on_exit(&clean_up, servr->conn);
-
-    return 0;
-}
-
-void clean_up(int status, void *conn) {
-    
-    fprintf(stderr, "Status: %d \n", status);
-}
-
-void signal_handler(int data) {
-    fprintf(stdout, "Press Enter to exit!\n");
-    break_flag = true;
-}
-
-void thread_handler(server_info *servr) {
-
-    if (!servr->conn_flag) {
-        pthread_exit(nullptr);
-    }
-
-    fprintf(stdout, "[+]client: ");
-
     char* message_buffer = nullptr;
     size_t msg_buffer_size = 0;
 
@@ -133,6 +79,11 @@ void thread_handler(server_info *servr) {
         free(message_buffer);
         pthread_exit(nullptr);
     }
+
+    // if (!servr->conn_flag) {
+    //     // exit(EXIT_FAILURE);
+    //     return;
+    // }
 
     DBusMessage *request;
 
@@ -171,26 +122,56 @@ void thread_handler(server_info *servr) {
 
     dbus_message_unref(request);
 
-    dbus_pending_call_block(pending_return);
-
     DBusMessage *reply;
 
-    if ((reply = dbus_pending_call_steal_reply(pending_return)) == nullptr) {
-        fprintf(stderr, "Error: dbus_pending_call_steal_reply \n");
-        exit(EXIT_FAILURE);
+    dbus_pending_call_block (pending_return);
+
+    if ((reply = dbus_pending_call_steal_reply (pending_return)) == NULL) {
+        fprintf (stderr, "Error in dbus_pending_call_steal_reply");
+        exit (1);
     }
 
+    DBusMessageIter args;
+
+    if (!dbus_message_iter_init(reply, &args)) {
+        fprintf(stdout, "Message has no argument \n");
+        break;
+    }
+
+    // auto value = dbus_message_iter_get_arg_type(&args);
+    if (dbus_message_iter_get_arg_type(&args) == DBUS_TYPE_ARRAY) {
+        fprintf(stdout, "Here I am\n");
+        break;
+    }
+
+
+    
+    
+
+    
+    
     dbus_pending_call_unref(pending_return);
 
-    char *response;
-
-    if (!dbus_message_get_args (reply, &servr->err, DBUS_TYPE_STRING, &response, DBUS_TYPE_INVALID)) {
-        fprintf(stderr, "Error %s\n", servr->err.message);
-        exit(EXIT_FAILURE);
-    }
-
     dbus_message_unref(reply);
-    
+
     dbus_bus_release_name(servr->conn, servr->client_bus_name, &servr->err);
+
+
+    }
+    
+    // on_exit(&clean_up, servr->conn);
+
+    return 0;
 }
+
+// void clean_up(int status, void *conn) {
+    
+//     fprintf(stderr, "status: %d \n", status);
+// }
+
+// void signal_handler(int data) {
+//     fprintf(stdout, "\nPress Enter to exit!\n");
+//     break_flag = true;
+// }
+
 
